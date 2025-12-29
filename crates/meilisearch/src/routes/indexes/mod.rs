@@ -12,6 +12,7 @@ use meilisearch_types::error::deserr_codes::*;
 use meilisearch_types::error::{Code, ResponseError};
 use meilisearch_types::index_uid::IndexUid;
 use meilisearch_types::milli::{self, FieldDistribution, Index};
+use meilisearch_types::settings::settings;
 use meilisearch_types::tasks::KindWithContent;
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -649,4 +650,26 @@ pub async fn get_index_stats(
 
     debug!(returns = ?stats, "Get index stats");
     Ok(HttpResponse::Ok().json(stats))
+}
+
+#[utoipa::path(
+    post,
+    path = "/{indexUid}/fields",
+    tag = "Fields",
+    security(("Bearer" = ["fields.post", "fields.*", "*"])),
+    params(("indexUid", example = "movies", description = "Index Unique Identifier", nullable = false)),
+)]
+pub async fn post_index_fields(
+    index_scheduler: GuardedData<ActionPolicy<{ actions::FIELDS_POST }>, Data<IndexScheduler>>,
+    index_uid: web::Path<String>,
+) -> Result<HttpResponse, ResponseError> {
+    let index = index_scheduler.index(index_uid.as_str())?;
+
+    let rtxn = index.read_txn()?;
+    let field_map = index.fields_ids_map_with_metadata(&rtxn)?;
+    // settings(index, rtxn, secret_policy);
+
+    // let all_field_names = field_map.names();
+    // index.searchable_fields_and_weights(rtxn)
+    todo!()
 }
