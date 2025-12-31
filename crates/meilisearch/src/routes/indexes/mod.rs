@@ -11,8 +11,9 @@ use meilisearch_types::deserr::{immutable_field_error, DeserrJsonError, DeserrQu
 use meilisearch_types::error::deserr_codes::*;
 use meilisearch_types::error::{Code, ResponseError};
 use meilisearch_types::index_uid::IndexUid;
-use meilisearch_types::milli::{self, FieldDistribution, Index};
-use meilisearch_types::settings::settings;
+use meilisearch_types::milli::{
+    self, FieldDistribution, FilterableAttributesRule, Index, MetadataBuilder,
+};
 use meilisearch_types::tasks::KindWithContent;
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -652,58 +653,60 @@ pub async fn get_index_stats(
     Ok(HttpResponse::Ok().json(stats))
 }
 
-pub struct Field {
-    pub name: String,
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Field<'a> {
+    pub name: &'a str,
     pub displayed: FieldDisplayConfig,
     pub searchable: FieldSearchConfig,
     pub distinct: FieldDistinctConfig,
-    pub filterable: FieldFilterableConfig,
-    pub localized: FieldLocalizedConfig,
+    pub filterable: FieldFilterableConfig<'a>,
+    pub localized: FieldLocalizedConfig<'a>,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDisplayConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldSearchConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDistinctConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FieldFacetSearchConfig {
-    pub sort_by: String,
+pub struct FieldFacetSearchConfig<'a> {
+    pub sort_by: &'a str,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldFilterConfig {
     pub equality: bool,
     pub comparison: bool,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FieldFilterableConfig {
+pub struct FieldFilterableConfig<'a> {
     pub enabled: bool,
-    pub facet_search: FieldFacetSearchConfig,
+    pub facet_search: FieldFacetSearchConfig<'a>,
     pub filter: FieldFilterConfig,
 }
 
-#[derive(Debug, Serialize, Clone, ToSchema)]
+#[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct FieldLocalizedConfig {
-    pub locales: Vec<String>,
+pub struct FieldLocalizedConfig<'a> {
+    pub locales: &'a [String],
 }
 
 #[utoipa::path(
@@ -720,10 +723,33 @@ pub async fn post_index_fields(
     let index = index_scheduler.index(index_uid.as_str())?;
 
     let rtxn = index.read_txn()?;
-    let field_map = index.fields_ids_map_with_metadata(&rtxn)?;
-    // settings(index, rtxn, secret_policy);
+    let builder = MetadataBuilder::from_index(&index, &rtxn)?;
 
-    // let all_field_names = field_map.names();
-    // index.searchable_fields_and_weights(rtxn)
-    todo!()
+    let fields = builder
+        .fields_metadata()
+        .iter()
+        .map(|(name, metadata)| {
+            let is_filterable = builder.filterable_attributes().iter().any(|rule| match rule {
+                FilterableAttributesRule::Pattern(p) => {
+                    p.match_str(&name) == milli::PatternMatch::Match
+                }
+                FilterableAttributesRule::Field(f) => f == name,
+            });
+
+            Field {
+                name,
+                displayed: FieldDisplayConfig { enabled: metadata.displayed },
+                searchable: FieldSearchConfig { enabled: metadata.searchable.is_some() },
+                distinct: FieldDistinctConfig { enabled: metadata.distinct },
+                filterable: FieldFilterableConfig {
+                    enabled: is_filterable,
+                    facet_search: todo!(),
+                    filter: todo!(),
+                },
+                localized: todo!(),
+            }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(fields))
 }

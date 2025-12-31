@@ -410,4 +410,8 @@ impl MetadataBuilder {
     pub fn localized_attributes_rules(&self) -> Option<&[LocalizedAttributesRule]> {
         self.localized_attributes.as_deref()
     }
+
+    pub fn fields_metadata(&self) -> &HashMap<String, Metadata> {
+        &self.fields_metadata
+    }
 }
