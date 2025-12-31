@@ -11,6 +11,7 @@ use meilisearch_types::deserr::{immutable_field_error, DeserrJsonError, DeserrQu
 use meilisearch_types::error::deserr_codes::*;
 use meilisearch_types::error::{Code, ResponseError};
 use meilisearch_types::index_uid::IndexUid;
+use meilisearch_types::milli::tokenizer::Language;
 use meilisearch_types::milli::{
     self, FieldDistribution, FilterableAttributesRule, Index, MetadataBuilder, OrderBy,
 };
@@ -79,6 +80,7 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
                     .route(web::delete().to(SeqHandler(delete_index))),
             )
             .service(web::resource("/stats").route(web::get().to(SeqHandler(get_index_stats))))
+            .service(web::resource("/fields").route(web::post().to(SeqHandler(post_index_fields))))
             .service(web::scope("/documents").configure(documents::configure))
             .service(web::scope("/search").configure(search::configure))
             .service(web::scope("/facet-search").configure(facet_search::configure))
@@ -706,7 +708,8 @@ pub struct FieldFilterableConfig<'a> {
 #[derive(Debug, Serialize, Clone, Copy, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldLocalizedConfig<'a> {
-    pub locales: &'a [String],
+    #[schema(value_type = Vec<String>)]
+    pub locales: &'a [Language],
 }
 
 #[utoipa::path(
@@ -736,6 +739,11 @@ pub async fn post_index_fields(
                 FilterableAttributesRule::Field(f) => f == name,
             });
 
+            let locales = builder
+                .localized_attributes_rules()
+                .and_then(|rules| metadata.locales(rules))
+                .unwrap_or_default();
+
             Field {
                 name,
                 displayed: FieldDisplayConfig { enabled: metadata.displayed },
@@ -754,7 +762,7 @@ pub async fn post_index_fields(
                         comparison: is_filterable,
                     },
                 },
-                localized: todo!(),
+                localized: FieldLocalizedConfig { locales },
             }
         })
         .collect::<Vec<_>>();
