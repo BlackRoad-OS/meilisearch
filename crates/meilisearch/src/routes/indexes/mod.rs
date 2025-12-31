@@ -652,6 +652,60 @@ pub async fn get_index_stats(
     Ok(HttpResponse::Ok().json(stats))
 }
 
+pub struct Field {
+    pub name: String,
+    pub displayed: FieldDisplayConfig,
+    pub searchable: FieldSearchConfig,
+    pub distinct: FieldDistinctConfig,
+    pub filterable: FieldFilterableConfig,
+    pub localized: FieldLocalizedConfig,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldDisplayConfig {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldSearchConfig {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldDistinctConfig {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldFacetSearchConfig {
+    pub sort_by: String,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldFilterConfig {
+    pub equality: bool,
+    pub comparison: bool,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldFilterableConfig {
+    pub enabled: bool,
+    pub facet_search: FieldFacetSearchConfig,
+    pub filter: FieldFilterConfig,
+}
+
+#[derive(Debug, Serialize, Clone, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldLocalizedConfig {
+    pub locales: Vec<String>,
+}
+
 #[utoipa::path(
     post,
     path = "/{indexUid}/fields",
