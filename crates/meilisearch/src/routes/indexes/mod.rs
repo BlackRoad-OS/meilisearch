@@ -12,7 +12,7 @@ use meilisearch_types::error::deserr_codes::*;
 use meilisearch_types::error::{Code, ResponseError};
 use meilisearch_types::index_uid::IndexUid;
 use meilisearch_types::milli::{
-    self, FieldDistribution, FilterableAttributesRule, Index, MetadataBuilder,
+    self, FieldDistribution, FilterableAttributesRule, Index, MetadataBuilder, OrderBy,
 };
 use meilisearch_types::tasks::KindWithContent;
 use serde::Serialize;
@@ -743,8 +743,16 @@ pub async fn post_index_fields(
                 distinct: FieldDistinctConfig { enabled: metadata.distinct },
                 filterable: FieldFilterableConfig {
                     enabled: is_filterable,
-                    facet_search: todo!(),
-                    filter: todo!(),
+                    facet_search: FieldFacetSearchConfig {
+                        sort_by: match metadata.sort_by {
+                            OrderBy::Lexicographic => "alpha",
+                            OrderBy::Count => "count",
+                        },
+                    },
+                    filter: FieldFilterConfig {
+                        equality: is_filterable,
+                        comparison: is_filterable,
+                    },
                 },
                 localized: todo!(),
             }

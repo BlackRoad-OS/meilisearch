@@ -9,9 +9,10 @@ use crate::attribute_patterns::{match_field_legacy, PatternMatch};
 use crate::constants::{
     RESERVED_GEOJSON_FIELD_NAME, RESERVED_GEO_FIELD_NAME, RESERVED_VECTORS_FIELD_NAME,
 };
+use crate::order_by_map::OrderByMap;
 use crate::{
     is_faceted_by, FieldId, FilterableAttributesFeatures, FilterableAttributesRule, Index,
-    LocalizedAttributesRule, Result, Weight,
+    LocalizedAttributesRule, OrderBy, Result, Weight,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -36,6 +37,8 @@ pub struct Metadata {
     pub localized_attributes_rule_id: Option<NonZeroU16>,
     /// The id of the filterable attributes rule if the field is filterable.
     pub filterable_attributes_rule_id: Option<NonZeroU16>,
+    /// How that field will be sorted by.
+    pub sort_by: OrderBy,
 }
 
 #[derive(Debug, Clone)]
@@ -221,6 +224,7 @@ pub struct MetadataBuilder {
     asc_desc_attributes: HashSet<String>,
     displayed_attributes: Option<HashSet<String>>,
     fields_metadata: HashMap<String, Metadata>,
+    order_by_map: OrderByMap,
 }
 
 impl MetadataBuilder {
@@ -252,6 +256,7 @@ impl MetadataBuilder {
             asc_desc_attributes,
             displayed_attributes,
             fields_metadata: HashMap::default(),
+            order_by_map: index.sort_facet_values_by(rtxn)?,
         };
 
         for field_name in index.fields_ids_map(rtxn)?.names() {
@@ -289,6 +294,7 @@ impl MetadataBuilder {
             asc_desc_attributes,
             displayed_attributes: None,
             fields_metadata: HashMap::default(),
+            order_by_map: OrderByMap::default(),
         }
     }
 
@@ -306,6 +312,7 @@ impl MetadataBuilder {
                 localized_attributes_rule_id: None,
                 filterable_attributes_rule_id: None,
                 displayed: self.is_field_displayed(field),
+                sort_by: OrderBy::default(),
             };
         }
 
@@ -334,7 +341,8 @@ impl MetadataBuilder {
                 geo_json: false,
                 localized_attributes_rule_id: None,
                 filterable_attributes_rule_id,
-                displayed: false,
+                displayed: self.is_field_displayed(field),
+                sort_by: self.order_by_map.get(field),
             };
         }
         if match_field_legacy(RESERVED_GEOJSON_FIELD_NAME, field) == PatternMatch::Match {
@@ -350,6 +358,7 @@ impl MetadataBuilder {
                 localized_attributes_rule_id: None,
                 filterable_attributes_rule_id,
                 displayed: self.is_field_displayed(field),
+                sort_by: self.order_by_map.get(field),
             };
         }
 
@@ -388,6 +397,7 @@ impl MetadataBuilder {
             localized_attributes_rule_id,
             filterable_attributes_rule_id,
             displayed: self.is_field_displayed(field),
+            sort_by: self.order_by_map.get(field),
         }
     }
 
